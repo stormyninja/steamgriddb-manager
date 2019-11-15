@@ -27,10 +27,18 @@ class Games extends React.Component {
             this.filterGames(searchTerm);
         }, 300);
 
+        this.changeMode = this.changeMode.bind(this);
+        this.appBarButtons = this.appBarButtons.bind(this);
+        this.commandBar = this.commandBar.bind(this);
+
+
+
         const qs = this.props.location && queryString.parse(this.props.location.search);
         this.scrollToTarget = qs.scrollto;
 
         this.zoom = 1;
+
+        this.modes = ['library','bigpicture','hero','logo'];
 
         this.fetchedGames = {}; // Fetched games are stored here and shouldn't be changed unless a fetch is triggered again
         this.platformNames = {
@@ -42,12 +50,20 @@ class Games extends React.Component {
             this.platformNames[platformModules[module].id] = platformModules[module].name;
         });
 
+        if(process.platform == 'darwin'){
+          log.info('Using MacOS');
+        }
+        if(process.platform == 'win32'){
+          log.info('Using Windows');
+        }
+
         this.state = {
             error: null,
             isLoaded: false,
             isHover: false,
             toSearch: false,
             hasSteam: true,
+            arttype: qs.arttype ? qs.arttype : 'library',
             items: {}
         };
     }
@@ -66,6 +82,7 @@ class Games extends React.Component {
     }
 
     componentDidUpdate(prevProps, prevState) {
+      log.info(`Now in ${this.state.arttype} mode`);
         if (Object.entries(prevState.items).length === 0 && this.scrollToTarget) {
             this.scrollTo(this.scrollToTarget);
             PubSub.publish('showBack', false);
@@ -96,7 +113,9 @@ class Games extends React.Component {
             appid: props.appid,
             type: props.gameType,
             gameId: props.gameId,
-            platform: props.platform
+            platform: props.platform,
+            arttype: props.arttype,
+            arttype_image: props.arttype_image
         });
 
         const to = `/search/?${parsedQs}`;
@@ -108,6 +127,14 @@ class Games extends React.Component {
     refreshGames() {
         this.setState({
             isLoaded: false
+        });
+        this.fetchGames();
+    }
+
+    changeMode = arttype => () => {
+        this.setState({
+            isLoaded: false,
+            arttype: arttype
         });
         this.fetchGames();
     }
@@ -155,6 +182,67 @@ class Games extends React.Component {
         return `${imageURI}?${(new Date().getTime())}`;
     }
 
+    appBarButtons(){
+      // TVMonitor, Games, Library, Refresh, Picture, Gridview, BackgroundToggle
+      // doesnt work: Favicon, RTTLogo
+      // https://docs.microsoft.com/en-us/windows/uwp/design/style/segoe-ui-symbol-font
+      let modes = {
+        library:{
+          icon: 'Library',
+          label: 'Library'
+        },
+        bigpicture:{
+          icon: 'TVMonitor',
+          label: 'Big Picture'
+        },
+        logo:{
+          icon: 'Font',
+          label: 'Logo'
+        },
+        hero:{
+          icon: 'Picture',
+          label: 'Hero'
+        }
+      };
+      return Object.keys(modes).map((key, i)=>{
+        if(true){
+        // if(key != this.state.arttype){
+        //
+          return (
+            <AppBarButton
+                icon={modes[key].icon}
+                label={modes[key].label}
+                labelPosition="right"
+                onClick={this.changeMode(key)}
+                style={(key == this.state.arttype ? { background: "rgba(0, 100, 180, 0.3)" } : {})}
+            />
+          );
+        }
+      });
+    }
+
+
+    commandBar(){
+      return(
+        <div
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                position: 'fixed',
+                top: 30,
+                width: 'calc(100vw - 55px)',
+                height: 48,
+                zIndex: 2
+            }}
+        >
+          <AutoSuggestBox style={{marginLeft: 'auto', marginRight: 24}} placeholder='Search' onChangeValue={this.searchInput}/>
+          {this.appBarButtons()}
+          <AppBarSeparator style={{height: 24}} />
+          <AppBarButton icon="Refresh" label="Refresh" onClick={this.refreshGames} />
+        </div>
+      );
+    }
+
     render() {
         const {isLoaded, hasSteam, items} = this.state;
 
@@ -177,27 +265,9 @@ class Games extends React.Component {
         return (
             <div style={{height: 'inherit', overflow: 'hidden'}}>
                 <TopBlur additionalHeight={48} />
-                <div
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        position: 'fixed',
-                        top: 30,
-                        width: 'calc(100vw - 55px)',
-                        height: 48,
-                        zIndex: 2
-                    }}
-                >
-                    <AutoSuggestBox style={{marginLeft: 'auto', marginRight: 24}} placeholder='Search' onChangeValue={this.searchInput}/>
-                    <AppBarSeparator style={{height: 24}} />
-                    <AppBarButton
-                        icon="Refresh"
-                        label="Refresh"
-                        onClick={this.refreshGames}
-                    />
-                </div>
+                {this.commandBar()}
                 <div id="grids-container" style={{height: '100%', overflow: 'auto', paddingTop: 64}}>
-                    {Object.keys(items).map((platform) => (
+                    {Object.keys(this.state.arttype != 'bigpicture' ? {steam: items['steam']} : items).map((platform) => (
                         <div key={platform} style={{paddingLeft: 10}}>
                             <div style={{
                                 ...this.context.theme.typographyStyles.subTitleAlt,
@@ -214,6 +284,12 @@ class Games extends React.Component {
                                 platform={platform}
                             >
                                 {items[platform].map((item) => {
+                                    let image = {
+                                      library: this.addNoCache(item.library_image),
+                                      bigpicture: this.addNoCache(item.bigpicture_image),
+                                      logo: this.addNoCache(item.logo_image),
+                                      hero: this.addNoCache(item.hero_image),
+                                    };
                                     const imageURI = this.addNoCache((item.imageURI));
                                     return (
                                         // id attribute is used as a scroll target after a search
@@ -224,8 +300,9 @@ class Games extends React.Component {
                                                 platform={platform}
                                                 appid={item.appid}
                                                 gameType={item.type}
-                                                image={imageURI}
+                                                image={image[this.state.arttype]}
                                                 zoom={this.zoom}
+                                                arttype={this.state.arttype}
                                                 onGridClick={this.toSearch}
                                             />
                                         </div>
