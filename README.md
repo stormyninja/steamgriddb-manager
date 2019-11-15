@@ -18,5 +18,7 @@ SteamGridDB Manager supports importing from the following launchers:
    - `npm run run` builds and starts the app.
    - `npm run dist` builds, then outputs an installer into the `dist` directory using electron-builder.
 
+NOTE: I had issues when just trying `npm install`, but the solution for node-gyp issues as listed [here](https://github.com/nodejs/node-gyp/pull/1715#issuecomment-502211967) worked wonders. I'm also using my version of node-steamgriddb directly because the npm install maybe hasn't been updated?
+
 # License
 [MIT](LICENSE.md)
