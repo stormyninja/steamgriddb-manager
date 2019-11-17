@@ -4,13 +4,8 @@ const fs = window.require('fs');
 const path = window.require('path');
 const log = window.require('electron-log');
 const spawn = require('child_process').spawn;
-//var result1 = convert.xml2json(xml, {compact: true, spaces: 4});
 
 class MacAppStore {
-
-  //  steam does not currently store icons in appid*.ext format
-  static mac_app_store_game_categories = ['games','action-games','adventure-games','arcade-games','board-games','card-games','casino-games','dice-games','educational-games','family-games','kids-games','music-games','puzzle-games','racing-games','role-playing-games','simulation-games','sports-games','strategy-games','trivia-games','word-games'];
-
   static isInstalled() {
     return new Promise((resolve, reject) => {
       /*
@@ -26,11 +21,6 @@ class MacAppStore {
 
 find /Applications -path '*Contents/_MASReceipt/receipt' -maxdepth 4 | sed 's#.app/Contents/_MASReceipt/receipt#.app#g; s#/Applications/##'
             */
-
-      this.getGames().then(result => {
-        log.info('result');
-        log.info(result);
-      });
       if (process.platform == 'darwin'){
         return resolve(true);
       }
@@ -43,8 +33,7 @@ find /Applications -path '*Contents/_MASReceipt/receipt' -maxdepth 4 | sed 's#.a
 
 
   static getGames() {
-
-
+    const mac_app_store_game_categories = ['games','action-games','adventure-games','arcade-games','board-games','card-games','casino-games','dice-games','educational-games','family-games','kids-games','music-games','puzzle-games','racing-games','role-playing-games','simulation-games','sports-games','strategy-games','trivia-games','word-games'];
     return new Promise((resolve, reject) => {
       const find = spawn('find', ['/Applications', '-path', '*Contents/_MASReceipt/receipt', '-maxdepth', '4', '-print']);
       const sed = spawn('sed', ['s#/_MASReceipt/receipt#/Info#g;']);
@@ -76,17 +65,28 @@ find /Applications -path '*Contents/_MASReceipt/receipt' -maxdepth 4 | sed 's#.a
               def.stdout.on('end', function() {
                 category = category.substr(category.lastIndexOf('.') + 1).split('\n')[0];
                 if (mac_app_store_game_categories.includes(category)) {
-                  let name = app.split('.app')[0].split('/')[2];
-                  let exe = app.split('.app')[0].concat('.app');
-                  resolve({
-                    name: name,
-                    id: name.replace(/\s+/g, ''),
-                    exe: `"${exe}"`,
-                    icon: `"${exe}"`,
-                    startIn: `"/Applications/"`,
-                    platform: 'mas'
+                  const defid = spawn('defaults', ['read', app, 'CFBundleIdentifier']);
+                  let id = '';
+                  defid.stdout.on('data', data => {
+                    id += data // gather chunked data
+                  })
+                  defid.stderr.on('data', data => {
+                    console.log(`stderr: ${data}`)
                   });
-                } else {
+                  defid.stdout.on('end', function() {
+                    let name = app.split('.app')[0].split('/')[2];
+                    let exe = app.split('.app')[0].concat('.app');
+                    resolve({
+                      name: name,
+                      id: id.split('\n')[0],
+                      exe: `"${exe}"`,
+                      icon: `"${exe}"`,
+                      startIn: `"/Applications/"`,
+                      platform: 'mas'
+                    });
+                  });
+                }
+                else {
                   resolve();
                 }
               });
@@ -101,6 +101,6 @@ find /Applications -path '*Contents/_MASReceipt/receipt' -maxdepth 4 | sed 's#.a
   }
 }
 export default MacAppStore;
-export const name = 'MacAppStore';
+export const name = 'Mac App Store';
 export const id = 'mas';
-export const official = true;
+export const official = false;

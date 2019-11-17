@@ -2,19 +2,17 @@ const Registry = window.require('winreg');
 const fs = window.require('fs');
 const path = window.require('path');
 const jsonminify = window.require('jsonminify');
-const {
-  arch
-} = window.require('os');
+const {arch} = window.require('os');
 const log = window.require('electron-log');
 
 class Epic {
   static isInstalled() {
     return new Promise((resolve, reject) => {
       let exeExists = null;
-      // Epic does support MacOS games, but need to re-do registry stuff
       if (process.platform == 'darwin') {
         exeExists = fs.existsSync('/Applications/Epic\ Games\ Launcher.app');
-      } else if (process.plaform == 'win32') {
+      }
+      else if (process.plaform == 'win32') {
         const reg = new Registry({
           hive: Registry.HKLM,
           arch: 'x86',

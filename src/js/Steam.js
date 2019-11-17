@@ -11,6 +11,8 @@ const log = window.require('electron-log');
 import SteamID from 'steamid';
 import {crc32} from 'crc';
 const SteamAPI = window.require('steamapi');
+const SGDB = window.require('steamgriddb');
+
 
 const steamAPI = new SteamAPI(process.env.STEAM_API_KEY);
 
@@ -35,6 +37,7 @@ class Steam {
       bigpicture: 'bigpicture',
       hero: 'hero',
       logo: 'logo',
+      thumb: 'small'
     }
 
     // will eventually add settings to remap arttypes to server filenames
@@ -84,6 +87,7 @@ class Steam {
         const DAYS_IN_MILLISECONDS = 1000 * 60 * 60 * 24;
         let updatefreq = 3 * DAYS_IN_MILLISECONDS;
         if (store.has('steamdb')) {
+          log.info('cached steamdb')
           updatefreq = store.get('steamdb.update_frequency');
           const db_lastupdate = new Date(store.get('steamdb.lastupdated'));
           const diff = currentdate.getTime() - db_lastupdate.getTime();
@@ -92,34 +96,36 @@ class Steam {
             return resolve(store.get('steamdb.database'))
           }
         }
-        else{
-          this.getSteamDatabase().then((appdict)=>{
-            store.set({
-              steamdb: {
-                lastupdated: currentdate,
-                update_frequency: updatefreq,
-                database: appdict
-              }
-            });
-            return resolve(appdict);
+        this.getSteamDatabase().then((appdict)=>{
+          store.set({
+            steamdb: {
+              lastupdated: currentdate,
+              update_frequency: updatefreq,
+              database: appdict
+            }
           });
-        }
+          return resolve(appdict);
+        }).catch((err)=>{
+          return reject(err);
+        });
       });
     }
 
     // Unclear on whether this method is needed
     // Makes a nice loggable dict of appname:steamid for shortcuts
     static getSteamIdsFromShortcuts(names) {
-      return this.getSteamAppLookup().then((appdict) => {
-        let steamidmap =  names.reduce((obj,name)=>{
-          if(appdict[name]){
-            obj[name] = appdict[name];
-          }
-          return obj;
-        },{});
-        log.info(`Found Steam entries for ${Object.keys(steamidmap).length} shortcuts:`)
-        log.info(Object.keys(steamidmap));
-        return steamidmap;
+      return new Promise((resolve, reject) => {
+        return this.getSteamAppLookup().then((appdict) => {
+          let steamidmap =  names.reduce((obj,name)=>{
+            if(appdict[name]){
+              obj[name] = appdict[name];
+            }
+            return obj;
+          },{});
+          log.info(`Found Steam entries for ${Object.keys(steamidmap).length} shortcuts:`)
+          log.info(Object.keys(steamidmap));
+          return resolve(steamidmap);
+        }).catch(log.error);
       });
     }
 
@@ -229,13 +235,13 @@ class Steam {
                                   });
 
                                   games.push({
-                                      appid: gameData.AppState.appid,
-                                      name: gameData.AppState.name,
-                                      library_image: images['library'],
-                                      bigpicture_image: images['bigpicture'],
-                                      logo_image: images['logo'],
-                                      hero_image: images['hero'],
-                                      type: 'game'
+                                    appid: gameData.AppState.appid,
+                                    name: gameData.AppState.name,
+                                    library_image: images['library'],
+                                    bigpicture_image: images['bigpicture'],
+                                    logo_image: images['logo'],
+                                    hero_image: images['hero'],
+                                    type: 'game'
                                   });
                               } catch(err) {
                                   log.warn(`Error while parsing ${file}: ${err}`);
@@ -247,6 +253,89 @@ class Steam {
                     log.info(`Fetched ${games.length} Steam games:`);
                     log.info(games.map(x=>x.name));
                     resolve(games);
+                });
+            });
+        });
+    }
+
+    static getOwnedGamesByApi() {
+      return new Promise((resolve, reject) => {
+        this.getSteamPath().then((steamPath) => {
+          this.getCurrentUserGridPath().then((userdataPath) => {
+            this.getLoggedInUser().then((user) => {
+
+            steamAPI.getUserOwnedGames((new SteamID(parseInt(user,10)))).then((response) => {
+                log.info(user);
+                log.info('user');
+                const games = response.map(game => {
+                  let default_images = this.getDefaultGridImages(game.appid);
+                  let custom_images = this.getCustomGridImages(userdataPath, game.appid);
+                  let images = {};
+                  Object.keys(this.art_type_suffix).forEach((key) => {
+                    images[key] = custom_images[key] ? custom_images[key] : default_images[key];
+                  });
+                  return {
+                    appid: game.appid,
+                    name: game.name,
+                    library_image: images['library'],
+                    bigpicture_image: images['bigpicture'],
+                    logo_image: images['logo'],
+                    hero_image: images['hero'],
+                    type: 'game'
+                  };
+                });
+                resolve(games);
+              })
+              .catch((err) => {
+                log.info('There was an error connecting to the Steam database.');
+                reject(err);
+              });
+            });
+          });
+        });
+      });
+    }
+
+
+
+    // get steam games by registry entries; seems to get all platform steam games?
+    static getOwnedSteamGames() {
+        const client = new SGDB(process.env.STEAMGRIDDB_API_KEY);
+        return new Promise((resolve) => {
+            this.getSteamPath().then((steamPath) => {
+                this.getCurrentUserGridPath().then((userdataPath) => {
+                    const parsedLibFolders = VDF.parse(fs.readFileSync(join(steamPath, 'registry.vdf'), 'utf-8'));
+                    const gamepromises = [];
+
+                    // Add library folders from libraryfolders.vdf
+                    Object.keys(parsedLibFolders.Registry.HKCU.Software.Valve.Steam.apps).forEach((steamid,i) => {
+                        let game = client.getGameBySteamAppId(steamid).then(game=>{
+                          let default_images = this.getDefaultGridImages(steamid);
+                          let custom_images = this.getCustomGridImages(userdataPath, steamid);
+                          let images = {};
+                          Object.keys(this.art_type_suffix).forEach((key)=>{
+                            images[key] = custom_images[key] ? custom_images[key] : default_images[key];
+                          });
+                          return {
+                              appid: steamid,
+                              name: game.name,
+                              library_image: images['library'],
+                              bigpicture_image: images['bigpicture'],
+                              logo_image: images['logo'],
+                              hero_image: images['hero'],
+                              type: 'game'
+                          };
+                        }).catch(err=>{
+                          //log.error(`${err} for steamid ${steamid}`);
+                        });
+                        gamepromises.push(game );
+                    });
+                    Promise.all(gamepromises).then(games=>{
+                      games = games.filter(game => game != null);
+                       log.info(`Fetched ${games.length} Steam games:`);
+                       //log.info(games.map(x=>x.name));
+                       resolve(games);
+                    }).catch(log.error);
                 });
             });
         });
@@ -267,8 +356,8 @@ class Steam {
                             return resolve([]);
                         }
                         let appnames = items.shortcuts.map(x => x.AppName || x.appname);
-                        log.info(`Found ${items.shortcuts.length} shortcuts:`);
-                        log.info(appnames);
+                        log.info(`Found ${items.shortcuts.length} shortcuts`);
+                        //log.info(appnames);
                         this.getSteamIdsFromShortcuts(appnames).then((lookup)=>{
                           items.shortcuts.forEach((item) => {
                               const appName = item.appname || item.AppName;
@@ -276,12 +365,12 @@ class Steam {
                               const appid = this.generateAppId(exe, appName);
                               const steamid = lookup[appName] || undefined;
 
-                              let custom_images = this.getCustomGridImages(userdataGridPath, appid, true)
+                              let custom_images = this.getCustomGridImages(userdataGridPath, appid, true);
                               let using_custom = Object.keys(custom_images).reduce((acc, key)=>{
                                 acc[key] = !!custom_images[key];
                                 return acc;
                               },{});
-                              let images = {custom_images};
+                              let images = custom_images;
                               if(steamid){
                                 let default_images = this.getDefaultGridImages(steamid);
                                 Object.keys(this.art_type_suffix).forEach((key)=>{
@@ -289,15 +378,12 @@ class Steam {
                                 });
                               }
 
-                              // stormy
-                              // check what gameid is actually for; tracking platform's id?
                               const configId = metrohash64(exe+item.LaunchOptions);
                               if (store.has(`games.${configId}`)) {
                                   const storedGame = store.get(`games.${configId}`);
                                   if (typeof games[storedGame.platform] == 'undefined') {
                                       games[storedGame.platform] = [];
                                   }
-
                                   games[storedGame.platform].push({
                                       gameId: storedGame.id,
                                       appid: appid,
@@ -311,11 +397,11 @@ class Steam {
                                       using_custom: using_custom,
                                       type: 'shortcut'
                                   });
-                              } else {
+                              }
+                              else {
                                   if (!games['other']) {
                                       games['other'] = [];
                                   }
-
                                   games['other'].push({
                                       gameId: null,
                                       appid: appid,
@@ -453,7 +539,7 @@ class Steam {
             this.getCurrentUserGridPath().then((userGridPath) => {
                 const image_url = url;
                 const image_ext = image_url.substr(image_url.lastIndexOf('.') + 1);
-                let gameid = (is_shortcut && arttype == 'bigpicture')? this.lengthenShortcutId(appId) : appId;
+                let gameid = (gameType == 'shortcut' && arttype == 'bigpicture')? this.lengthenShortcutId(appId) : appId;
                 const dest = join(userGridPath, `${gameid}${this.art_type_suffix[arttype]}.${image_ext}`);
 
                 let cur = 0;

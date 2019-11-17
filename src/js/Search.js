@@ -45,10 +45,14 @@ class Search extends React.Component {
           this.styles = undefined;
           this.dimensions = ['600x900'];
         }
-        else if (this.arttype == 'bigpicture'){
-          this.styles = undefined;
-          this.dimensions = undefined;
-        }
+        // else if (this.arttype == 'bigpicture'){
+        //   this.styles = undefined;
+        //   this.dimensions = ['920x430','460x215'];
+        // }
+        // else if (this.arttype == 'hero'){
+        //   this.styles = undefined;
+        //   this.dimensions = ['1920x620', '3840x1240'];
+        // }
 
         this.state = {
             error: null,
@@ -128,8 +132,7 @@ class Search extends React.Component {
           }
           // if game platform is from an 'official' importer in importers/
           if (officialList.includes(this.platform)) {
-              client.getGrids({id: this.gameId, type: this.platform, styles: this.styles, dimensions: this.dimensions})
-                  .then((grids) => {
+stt                  .then((grids) => {
                       this.setState({
                           isLoaded: true,
                           items: items.concat(grids)
@@ -142,8 +145,7 @@ class Search extends React.Component {
                   });
           }
           else {
-              client.searchGame(this.query)
-                  .then((res) => {
+              client.searchGame(this.query).then((res) => {
                       client.getGridsById(res[0].id, this.styles, this.dimensions)
                           .then((grids) => {
                               this.setState({
@@ -166,7 +168,6 @@ class Search extends React.Component {
         }
         log.info(`Applying ${props.arttype} image to ${props.name} from ${props.image}`);
         this.setIsDownloading(true);
-        const itemsClone = Object.assign({}, this.state.items);
         Steam.addGrid(props.appid, props.gameType, props.image, props.arttype, (progress) => {
             this.setState({downloadProgress: progress});
             itemsClone[props.index].progress = progress;

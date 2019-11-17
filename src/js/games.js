@@ -92,7 +92,9 @@ class Games extends React.Component {
     }
 
     fetchGames() {
-        const steamGamesPromise = Steam.getSteamGames();
+        // const steamGamesPromise = Steam.getSteamGames();
+        // const steamGamesPromise = Steam.getOwnedSteamGames();
+        const steamGamesPromise = Steam.getOwnedGamesByApi();
         const nonSteamGamesPromise = Steam.getNonSteamGames();
         Promise.all([steamGamesPromise, nonSteamGamesPromise]).then((values) => {
             const items = {steam: values[0], ...values[1]};
@@ -136,6 +138,7 @@ class Games extends React.Component {
         this.fetchGames();
     }
 
+    // change this to NOT fetch games again
     refreshGames() {
         this.setState({
             isLoaded: false
@@ -291,10 +294,6 @@ class Games extends React.Component {
                                 platform={platform}
                             >
                                 {items[platform].map((item) => {
-                                    let library_image_uri = this.addNoCache(item.library_image);
-                                    let bigpicture_image_uri = this.addNoCache(item.bigpicture_image);
-                                    let logo_image_uri = this.addNoCache(item.logo_image);
-                                    let hero_image_uri = this.addNoCache(item.hero_image);
                                     let image = {
                                       library: this.addNoCache(item.library_image),
                                       bigpicture: this.addNoCache(item.bigpicture_image),

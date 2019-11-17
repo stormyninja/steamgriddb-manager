@@ -2,6 +2,8 @@ import React from 'react';
 import ListView from 'react-uwp/ListView';
 import PropTypes from 'prop-types';
 import ImportListItem from './ImportListItem';
+const log = window.require('electron-log');
+
 
 class ImportList extends React.Component {
     constructor(props) {
@@ -11,9 +13,11 @@ class ImportList extends React.Component {
         this.grids = this.props.grids;
         this.platform = this.props.platform;
         this.onImportClick = this.props.onImportClick;
+        this.onChangeAlt = this.props.onChangeAlt;
     }
 
     render() {
+        log.info("RENDERING IMPORTLIST");
         const listStyle = {
             background: 'none',
             border: 0,
@@ -26,14 +30,10 @@ class ImportList extends React.Component {
             this.games.map((game, i) => {
                 let thumb = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkqAcAAIUAgUW0RjgAAAAASUVORK5CYII=';
                 let image = null;
-                if (this.grids) {
-                    if (this.games.length > 1 && this.grids[i].length === 1 && this.grids[i][0].success !== false) {
-                        thumb = this.grids[i][0].thumb;
-                        image = this.grids[i][0].url;
-                    } else if (this.games.length === 1 && this.grids) {
-                        thumb = this.grids[0].thumb;
-                        image = this.grids[0].url;
-                    }
+                const gamegrids = this.grids[game.id];
+                if (gamegrids) {
+                    thumb = gamegrids.steam.thumb || gamegrids.db.thumb || thumb;
+                    image = gamegrids.steam.bigpicture || gamegrids.db.bigpicture || null;
                 }
 
                 let progress = game.progress;
@@ -41,14 +41,19 @@ class ImportList extends React.Component {
                     progress = 0;
                 }
 
+                let use_alt = game.use_alt;
+                game['idx'] = i;
+
                 return (
                     <ImportListItem
                         key={this.games.id}
                         progress={progress}
+                        use_alt={use_alt}
                         image={image}
                         thumb={thumb}
                         game={game}
                         platform={this.platform}
+                        onChangeAlt={this.onChangeAlt}
                         onImportClick={this.onImportClick}
                     />
                 );

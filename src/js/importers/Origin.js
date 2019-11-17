@@ -10,7 +10,7 @@ class Origin {
     static isInstalled() {
         return new Promise((resolve, reject) => {
             // MacOS is mostly just Sims games, but technically the platform suppports origin
-            // very low priority
+            // very, very low priority
             if(process.platform == 'darwin'){
               resolve(false);
             }

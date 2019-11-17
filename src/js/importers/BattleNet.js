@@ -21,7 +21,8 @@ const BNET_GAMES = {
         name: 'Heroes of the Storm',
         launchId: 'Hero',
         exes: ['HeroesSwitcher', 'HeroesSwitcher_x64'],
-        icon: 'Heroes of the Storm.exe'
+        icon: 'Heroes of the Storm.exe',
+        mac: 'Support/HeroesSwitcher.app'
     },
     /*
     'odin': {
@@ -76,28 +77,36 @@ const BNET_GAMES = {
 class BattleNet {
     static isInstalled() {
         return new Promise((resolve, reject) => {
-            // MacOS not supported
+            let exeExists = null;
             if(process.platform == 'darwin'){
-              return resolve(false);
+                exeExists = fs.existsSync('/Applications/Battle.net.app');
             }
-            const reg = new Registry({
-                hive: Registry.HKLM,
-                arch: 'x86',
-                key: '\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Battle.net'
-            });
+            else if (process.platfrom == 'win32'){
+              const reg = new Registry({
+                  hive: Registry.HKLM,
+                  arch: 'x86',
+                  key: '\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Battle.net'
+              });
 
-            reg.valueExists('', (err, exists) => {
-                if (err) {
-                    reject(new Error('Could not check if the Battle.net is installed.'));
-                }
-
-                resolve(exists);
-            });
+              reg.valueExists('', (err, exists) => {
+                  if (err) {
+                      reject(new Error('Could not check if the Battle.net is installed.'));
+                  }
+                  exeExists = exists;
+              });
+            }
+            return resolve(exeExists);
         });
     }
 
     static getBattlenetPath() {
         return new Promise((resolve, reject) => {
+          if (process.platform == 'darwin') {
+            let epicPath = `/Users/Shared/Battle.net`;
+            resolve(epicPath);
+          }
+
+
             const reg = new Registry({
                 hive: Registry.HKLM,
                 arch: 'x86',
@@ -124,47 +133,73 @@ class BattleNet {
     static getGames() {
         return new Promise((resolve, reject) => {
             log.info('Import: Started bnet');
-            this.getBattlenetPath().then((bnetPath) => {
-                const games = [];
-                const bnetExe = path.join(bnetPath, 'Battle.net.exe');
-
-                // Get path to LauncherAutoClose.ps1
-                let launcherWatcher = path.resolve(path.dirname(process.resourcesPath), '../../../', 'LauncherAutoClose.ps1');
-                if (!fs.existsSync(launcherWatcher)) {
-                    launcherWatcher = path.join(path.dirname(process.resourcesPath), 'LauncherAutoClose.ps1');
-                }
-
-                const powershellExe = path.join(process.env.windir, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-
-                try {
-                    const decoded = decoder.decode(fs.readFileSync('C:\\ProgramData\\Battle.net\\Agent\\product.db'));
-                    const installed = decoded.productInstall.filter((product) => !(product.uid === 'battle.net' || product.uid === 'agent')); // Filter out non-games
-
-                    installed.forEach((product) => {
-                        const gameId = product.uid;
-                        const productCode = product.productCode.toLowerCase();
-                        if (BNET_GAMES[productCode]) {
-                            const launchId = BNET_GAMES[productCode].launchId;
-                            const name = BNET_GAMES[productCode].name;
-                            const exes = BNET_GAMES[productCode].exes;
-                            const icon = path.join(product.settings.installPath, BNET_GAMES[productCode].icon);
-                            games.push({
-                                id: gameId,
-                                name: name,
-                                exe: `"${powershellExe}"`,
-                                icon: `"${icon}"`,
-                                startIn: `"${bnetPath}"`,
-                                params: `-windowstyle hidden -NoProfile -ExecutionPolicy Bypass -Command "& \\"${launcherWatcher}\\" -launcher \\"battle.net\\" -game \\"${exes.join('\\",\\"')}\\" -launchcmd \\"dummy\\" -bnet $True -bnetpath \\"${bnetExe}\\" -bnetlaunchid \\"${launchId}\\""`,
-                                platform: 'bnet'
-                            });
-                        }
+            const games = [];
+            if (process.platform == 'darwin') {
+              const decoded = decoder.decode(fs.readFileSync('/Users/Shared/Battle.net/Agent/product.db'));
+              const installed = decoded.productInstall.filter((product) => !(product.uid === 'battle.net' || product.uid === 'agent'));
+              installed.forEach((product)=>{
+                const gameId = product.uid;
+                const productCode = product.productCode.toLowerCase();
+                if (BNET_GAMES[productCode]) {
+                    const launchId = BNET_GAMES[productCode].launchId;
+                    const name = BNET_GAMES[productCode].name;
+                    const exes = BNET_GAMES[productCode].exes;
+                    const icon = path.join(product.settings.installPath, BNET_GAMES[productCode].icon);
+                    games.push({
+                        id: gameId,
+                        name: name,
+                        exe: `"${path.join(product.settings.installPath,name.concat('.app'))}"`,
+                        icon: `"${path.join(product.settings.installPath,name.concat('.app'))}"`,
+                        startIn: `"${product.settings.installPath}"`,
+                        platform: 'bnet'
                     });
-                    log.info('Import: Completed bnet');
-                    resolve(games);
-                } catch(err) {
-                    reject(err);
                 }
-            }).catch((err) => reject(err));
+              });
+              return resolve(games);
+            }
+            else if (process.platform == 'win32'){
+              this.getBattlenetPath().then((bnetPath) => {
+                  const bnetExe = path.join(bnetPath, 'Battle.net.exe');
+
+                  // Get path to LauncherAutoClose.ps1
+                  let launcherWatcher = path.resolve(path.dirname(process.resourcesPath), '../../../', 'LauncherAutoClose.ps1');
+                  if (!fs.existsSync(launcherWatcher)) {
+                      launcherWatcher = path.join(path.dirname(process.resourcesPath), 'LauncherAutoClose.ps1');
+                  }
+
+                  const powershellExe = path.join(process.env.windir, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+
+                  try {
+                      const decoded = decoder.decode(fs.readFileSync('C:\\ProgramData\\Battle.net\\Agent\\product.db'));
+                      const installed = decoded.productInstall.filter((product) => !(product.uid === 'battle.net' || product.uid === 'agent')); // Filter out non-games
+
+                      installed.forEach((product) => {
+                          const gameId = product.uid;
+                          const productCode = product.productCode.toLowerCase();
+                          if (BNET_GAMES[productCode]) {
+                              const launchId = BNET_GAMES[productCode].launchId;
+                              const name = BNET_GAMES[productCode].name;
+                              const exes = BNET_GAMES[productCode].exes;
+                              const icon = path.join(product.settings.installPath, BNET_GAMES[productCode].icon);
+                              games.push({
+                                  id: gameId,
+                                  name: name,
+                                  exe: `"${powershellExe}"`,
+                                  icon: `"${icon}"`,
+                                  startIn: `"${bnetPath}"`,
+                                  params: `-windowstyle hidden -NoProfile -ExecutionPolicy Bypass -Command "& \\"${launcherWatcher}\\" -launcher \\"battle.net\\" -game \\"${exes.join('\\",\\"')}\\" -launchcmd \\"dummy\\" -bnet $True -bnetpath \\"${bnetExe}\\" -bnetlaunchid \\"${launchId}\\""`,
+                                  platform: 'bnet'
+                              });
+                          }
+                      });
+                      log.info('Import: Completed bnet');
+                      resolve(games);
+                  } catch(err) {
+                      reject(err);
+                  }
+              })
+              .catch((err) => reject(err));
+            }
         });
     }
 }
