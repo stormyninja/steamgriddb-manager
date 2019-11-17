@@ -24,7 +24,8 @@ function createWindow () {
         icon: path.join(__dirname, 'assets/icons/192x192.png'),
         transparent: false,
         webPreferences: {
-            nodeIntegration: true
+            nodeIntegration: true,
+            devTools: true
         }
     });
 
@@ -61,9 +62,12 @@ app.on('ready', createWindow);
 app.on('window-all-closed', () => {
     // On OS X it is common for applications and their menu bar
     // to stay active until the user quits explicitly with Cmd + Q
-    if (process.platform !== 'darwin') {
+
+    // stormy
+    // This is common, but undesirable seeing as once the window is closed it's a dead process
+    //if (process.platform !== 'darwin') {
         app.quit();
-    }
+    //}
 });
 
 app.on('activate', () => {
