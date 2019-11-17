@@ -30,7 +30,12 @@ class Import extends React.Component {
             error: false
         }));
 
-        this.SGDB = new SGDB('b971a6f5f280490ab62c0ee7d0fd1d16');
+
+        if(process.platform == 'darwin'){
+          log.info('No platforms supported');
+          this.platforms = [];
+        }
+        this.SGDB = new SGDB(process.env.STEAMGRIDDB_API_KEY);
 
         this.state = {
             isLoaded: false,
