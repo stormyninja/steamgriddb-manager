@@ -6,6 +6,11 @@ const log = window.require('electron-log');
 class Gog {
     static isInstalled() {
         return new Promise((resolve, reject) => {
+            // MacOS not supported
+            if(process.platform == 'darwin'){
+              return resolve(false);
+            }
+            return;
             const reg = new Registry({
                 hive: Registry.HKLM,
                 arch: 'x86',

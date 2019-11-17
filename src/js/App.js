@@ -11,6 +11,7 @@ import {HashRouter as Router, Redirect, Link, Route} from 'react-router-dom';
 import UWPNoise from '../img/uwp-noise.png';
 
 import Search from './Search.js';
+import Settings from './Settings.js';
 import Games from './games.js';
 import Import from './Import.js';
 
@@ -80,8 +81,13 @@ class App extends React.Component {
         const navWidth = 48;
 
         const navigationTopNodes = [
-            <SplitViewCommand key="0" label="Main Library" icon={'Library'} onClick={() => this.handleNavRedirect('/?arttype=library')} />,
-            //<SplitViewCommand key="1" label="Import Games" icon={'ImportAll'} onClick={() => this.handleNavRedirect('/import')} />
+          <SplitViewCommand key="0" label="Main Library" icon={'Library'} onClick={() => this.handleNavRedirect('/?arttype=library')} />,
+          // these don't redirect - need to rework if using sidebar
+          // <SplitViewCommand key="1" label="Big Picture" icon={'TVMonitor'} onClick={() => this.handleNavRedirect('/?arttype=bigpicture')} />,
+          // <SplitViewCommand key="2" label="Logo" icon={'HalfAlpha'} onClick={() => this.handleNavRedirect('/?arttype=logo')} />,
+          // <SplitViewCommand key="3" label="Hero" icon={'Picture'} onClick={() => this.handleNavRedirect('/?arttype=hero')} />,
+          <SplitViewCommand key="4" label="Import Games" icon={'ImportAll'} onClick={() => this.handleNavRedirect('/import')} />
+          //<SplitViewCommand key="5" label="Import Games" icon={'Settings'} onClick={() => this.handleNavRedirect('/settings')} />
         ];
 
         let backBtn;
@@ -164,8 +170,9 @@ class App extends React.Component {
                                 }
 
                                 <Route exact path="/" component={Games} />
-                                //<Route exact path="/import" component={Import} />
+                                <Route exact path="/import" component={Import} />
                                 <Route exact path="/search" component={Search} />
+                                <Route exact path="/settings" component={Settings} />
                             </div>
                         </NavigationView>
                     </div>

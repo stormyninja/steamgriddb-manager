@@ -30,10 +30,8 @@ class Import extends React.Component {
             error: false
         }));
 
-
-        if(process.platform == 'darwin'){
-          log.info('No platforms supported');
-          this.platforms = [];
+        if(process.platform=='darwin'){
+          //this.platforms = [];
         }
         this.SGDB = new SGDB(process.env.STEAMGRIDDB_API_KEY);
 
@@ -63,6 +61,7 @@ class Import extends React.Component {
                     const games = {};
                     const gridsPromises = [];
 
+                    // for each platform
                     results.forEach((result, index) => {
                         if (result.isFulfilled() && result.value() !== false) {
                             games[this.platforms[index].id] = result.value();
@@ -150,29 +149,53 @@ class Import extends React.Component {
     addGames(games, grids, platform) {
         this.platformGamesSave(games);
 
+        let appnames = [];
         // Add shortcuts with platform name as tag
         Steam.addShortcuts(games.map((game) => {
+            // while we're already looping, build a list of game names
+            appnames.push(game.name);
             game.tags = [platform.name];
             return game;
         }));
-
         const addGridPromises = [];
-        games.forEach((game, i) => {
-            let image = null;
-            if (games.length > 1 && grids[i].length === 1 && grids[i][0].success !== false) {
-                image = grids[i][0].url;
-            } else if (games.length === 1 && grids) {
-                image = grids[0].url;
-            }
-            if (image) {
-                const gamesClone = Object.assign({}, this.state.games);
-                const addGrid = Steam.addGrid(Steam.generateAppId(game.exe, game.name), image, (progress) => {
-                    gamesClone[platform.id][gamesClone[platform.id].indexOf(game)].progress = progress;
-                    this.setState({gamesClone});
-                });
+        Steam.getSteamIdsFromShortcuts(appnames).then((lookup)=>{
+            games.forEach((game, i) => {
+                const appid = Steam.generateAppId(game.exe, game.name);
+                const steamid = lookup[game.name] || undefined;
+                if(steamid){
+                    let default_images = Steam.getDefaultGridImages(steamid);
+                    Object.keys(default_images).forEach(key=>{
+                        const gamesClone = Object.assign({}, this.state.games);
+                        const addGrid = Steam.addGrid(appid, 'shortcut', default_images[key], key, (progress) => {
+                            gamesClone[platform.id][gamesClone[platform.id].indexOf(game)].progress = progress;
+                            this.setState({gamesClone});
+                        });
+                        addGridPromises.push(addGrid);
 
-                addGridPromises.push(addGrid);
-            }
+                    });
+
+                }
+                else{
+                  let image = null;
+                  if (games.length > 1 && grids[i].length === 1 && grids[i][0].success !== false) {
+                      image = grids[i][0].url;
+                  } else if (games.length === 1 && grids) {
+                      image = grids[0].url;
+                  }
+                  if (image) {
+                      const gamesClone = Object.assign({}, this.state.games);
+                      const addGrid = Steam.addGrid(Steam.generateAppId(game.exe, game.name), image, (progress) => {
+                          gamesClone[platform.id][gamesClone[platform.id].indexOf(game)].progress = progress;
+                          this.setState({gamesClone});
+                      });
+
+                      addGridPromises.push(addGrid);
+                  }
+                }
+
+            });
+
+
         });
 
         Promise.all(addGridPromises).then(() => {
@@ -192,24 +215,53 @@ class Import extends React.Component {
             tags: [platform.name],
             icon: game.icon
         }]);
-        if (image) {
-            const gamesClone = Object.assign({}, this.state.games);
-            Steam.addGrid(Steam.generateAppId(game.exe, game.name), image, (progress) => {
-                gamesClone[platform.id][gamesClone[platform.id].indexOf(game)].progress = progress;
-                this.setState({gamesClone});
-            }).then((dest) => {
-                PubSub.publish('toast', {logoNode: 'Import', title: `Successfully Imported: ${game.name}`, contents: (
-                    <Image
-                        style={{width: '100%', marginTop: 10}}
-                        src={dest}
-                    />
-                )});
-            }).catch((err) => {
-                PubSub.publish('toast', {logoNode: 'Error', title: `Failed to import: ${game.name}`, contents: (
-                    <p>{err.message}</p>
-                )});
-            });
-        }
+
+        Steam.getSteamIdsFromShortcuts([game.name]).then((lookup)=>{
+            const appid = Steam.generateAppId(game.exe, game.name);
+            const steamid = lookup[game.name] || undefined;
+            if(steamid){
+                let default_images = Steam.getDefaultGridImages(steamid);
+                const addGridPromises = [];
+
+                Object.keys(default_images).forEach(key=>{
+                    const gamesClone = Object.assign({}, this.state.games);
+                    const addGrid = Steam.addGrid(appid, 'shortcut', default_images[key], key, (progress) => {
+                        gamesClone[platform.id][gamesClone[platform.id].indexOf(game)].progress = progress;
+                        this.setState({gamesClone});
+                    });
+                    addGridPromises.push(addGrid);
+
+                });
+                Promise.all(addGridPromises).then(() => {
+                    PubSub.publish('toast', {logoNode: 'Import', title: `Successfully Imported: ${game.name}`, contents: (
+                        <Image
+                            style={{width: '100%', marginTop: 10}}
+                            src={default_images['library']}
+                        />
+                    )});
+                });
+
+            }
+            else if (image) {
+                const gamesClone = Object.assign({}, this.state.games);
+                Steam.addGrid(Steam.generateAppId(game.exe, game.name), 'shortcut', image, 'bigpicture', (progress) => {
+                    gamesClone[platform.id][gamesClone[platform.id].indexOf(game)].progress = progress;
+                    this.setState({gamesClone});
+                }).then((dest) => {
+                    PubSub.publish('toast', {logoNode: 'Import', title: `Successfully Imported: ${game.name}`, contents: (
+                        <Image
+                            style={{width: '100%', marginTop: 10}}
+                            src={dest}
+                        />
+                    )});
+                }).catch((err) => {
+                    PubSub.publish('toast', {logoNode: 'Error', title: `Failed to import: ${game.name}`, contents: (
+                        <p>{err.message}</p>
+                    )});
+                });
+            }
+        });
+
     }
 
     render() {

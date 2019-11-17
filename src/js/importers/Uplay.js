@@ -7,6 +7,10 @@ const log = window.require('electron-log');
 class Uplay {
     static isInstalled() {
         return new Promise((resolve, reject) => {
+            // MacOS not supported by uplay launcher
+            if(process.platform == 'darwin'){
+              return resolve(false);
+            }
             const reg = new Registry({
                 hive: Registry.HKLM,
                 arch: 'x86',

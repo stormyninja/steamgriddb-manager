@@ -18,8 +18,8 @@ let mainWindow;
 function createWindow () {
     autoUpdater.checkForUpdatesAndNotify();
     mainWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
+        width: 1600,
+        height: 900,
         frame:false,
         icon: path.join(__dirname, 'assets/icons/192x192.png'),
         transparent: false,

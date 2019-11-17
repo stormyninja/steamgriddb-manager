@@ -9,6 +9,11 @@ const log = window.require('electron-log');
 class Origin {
     static isInstalled() {
         return new Promise((resolve, reject) => {
+            // MacOS is mostly just Sims games, but technically the platform suppports origin
+            // very low priority
+            if(process.platform == 'darwin'){
+              resolve(false);
+            }
             const reg = new Registry({
                 hive: Registry.HKLM,
                 arch: 'x86',

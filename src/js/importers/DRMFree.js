@@ -7,6 +7,13 @@ const log = window.require('electron-log');
 class DRMFree {
     static isInstalled() {
         return new Promise((resolve, reject) => {
+
+            // Epic does support MacOS games, but need to re-do registry stuff
+            if(process.platform == 'darwin'){
+              return resolve(false);
+            }
+
+
             const reg = new Registry({
                 hive: Registry.HKLM,
                 arch: 'x86',
