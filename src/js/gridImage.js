@@ -7,33 +7,9 @@ const ReactLazyLoad = require('react-lazyload').default;
 class GridImage extends React.Component {
     constructor(props) {
         super(props);
-        this.zoom = this.props.zoom;
-        let sizes = {
-          library:{
-            width: 600 * this.zoom,
-            height: 900 * this.zoom,
-            scale: 3
-          },
-          bigpicture:{
-            width: 460 * this.zoom,
-            height: 215 * this.zoom,
-            scale: 1.5
-          },
-          logo:{
-            width: 640 * this.zoom,
-            height: 360 * this.zoom,
-            scale: 2
-          },
-          hero:{
-            width: 1920 * this.zoom,
-            height: 620 * this.zoom,
-            scale: 6.5
-          }
-        }
 
-        this.gridWidth = sizes[this.props.arttype].width * this.zoom / sizes[this.props.arttype].scale;
-        this.gridHeight = sizes[this.props.arttype].height * this.zoom / sizes[this.props.arttype].scale;
-
+        this.gridWidth = 300 * this.props.zoom;
+        this.gridHeight = 140 * this.props.zoom;
         this.onGridClick = this.props.onGridClick;
         this.handleClick = this.handleClick.bind(this);
     }

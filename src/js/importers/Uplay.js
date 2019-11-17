@@ -3,7 +3,6 @@ const yaml = window.require('js-yaml');
 const fs = window.require('fs');
 const path = window.require('path');
 const log = window.require('electron-log');
-import { PowerShell, LauncherAutoClose } from '../paths.js';
 
 class Uplay {
     static isInstalled() {
@@ -260,6 +259,12 @@ class Uplay {
     static getGames() {
         return new Promise((resolve, reject) => {
             log.info('Import: Started uplay');
+            // Get path to LauncherAutoClose.ps1
+            let launcherWatcher = path.resolve(path.dirname(process.resourcesPath), '../../../', 'LauncherAutoClose.ps1');
+            if (!fs.existsSync(launcherWatcher)) {
+                launcherWatcher = path.join(path.dirname(process.resourcesPath), 'LauncherAutoClose.ps1');
+            }
+            const powershellExe = path.join(process.env.windir, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
 
             this.getUplayPath().then((uplayPath) => {
                 this.parseConfig(path.join(uplayPath, 'cache', 'configuration', 'configurations')).then((configItems) => {
@@ -308,10 +313,10 @@ class Uplay {
                                                 games.push({
                                                     id: gameId,
                                                     name: gameName,
-                                                    exe: `"${PowerShell}"`,
+                                                    exe: `"${powershellExe}"`,
                                                     icon: `"${executables[0]}"`,
                                                     startIn: `"${uplayPath}"`,
-                                                    params: `-windowstyle hidden -NoProfile -ExecutionPolicy Bypass -Command "& \\"${LauncherAutoClose}\\" -launcher \\"upc\\" -game \\"${watchedExes.join('\\",\\"')}\\" -launchcmd \\"uplay://launch/${game.root.launcher_id}\\""`,
+                                                    params: `-windowstyle hidden -NoProfile -ExecutionPolicy Bypass -Command "& \\"${launcherWatcher}\\" -launcher \\"upc\\" -game \\"${watchedExes.join('\\",\\"')}\\" -launchcmd \\"uplay://launch/${game.root.launcher_id}\\""`,
                                                     platform: 'uplay'
                                                 });
                                             } else {

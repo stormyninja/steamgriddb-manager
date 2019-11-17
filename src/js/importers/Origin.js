@@ -5,7 +5,6 @@ const querystring = window.require('querystring');
 const xml2js = window.require('xml-js').xml2js;
 const iconv = window.require('iconv-lite');
 const log = window.require('electron-log');
-import { PowerShell, LauncherAutoClose } from '../paths.js';
 
 class Origin {
     static isInstalled() {
@@ -87,6 +86,14 @@ class Origin {
                 const originDataPath = 'C:\\ProgramData\\Origin';
                 const games = [];
 
+                // Get path to LauncherAutoClose.ps1
+                let launcherWatcher = path.resolve(path.dirname(process.resourcesPath), '../../../', 'LauncherAutoClose.ps1');
+                if (!fs.existsSync(launcherWatcher)) {
+                    launcherWatcher = path.join(path.dirname(process.resourcesPath), 'LauncherAutoClose.ps1');
+                }
+
+                const powershellExe = path.join(process.env.windir, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+
                 if (fs.existsSync(path.join(originDataPath, 'LocalContent'))) {
                     fs.readdirSync(path.join(originDataPath, 'LocalContent')).forEach((folder) => {
                         const manifestFolder = path.join(originDataPath, 'LocalContent', folder);
@@ -149,10 +156,10 @@ class Origin {
                                                 games.push({
                                                     id: manifestStrParsed.id,
                                                     name: name,
-                                                    exe: `"${PowerShell}"`,
+                                                    exe: `"${powershellExe}"`,
                                                     icon: `"${path.join(manifestStrParsed.dipinstallpath, executables[0])}"`,
                                                     startIn: `"${path.dirname(originPath)}"`,
-                                                    params: `-windowstyle hidden -NoProfile -ExecutionPolicy Bypass -Command "& \\"${LauncherAutoClose}\\"" -launcher \\"Origin\\" -game \\"${watchedExes.join('\\",\\"')}\\" -launchcmd \\"origin://launchgamejump/${manifestStrParsed.id}\\""`,
+                                                    params: `-windowstyle hidden -NoProfile -ExecutionPolicy Bypass -Command "& \\"${launcherWatcher}\\"" -launcher \\"Origin\\" -game \\"${watchedExes.join('\\",\\"')}\\" -launchcmd \\"origin://launchgamejump/${manifestStrParsed.id}\\""`,
                                                     platform: 'origin'
                                                 });
                                             }
