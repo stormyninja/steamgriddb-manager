@@ -92,9 +92,9 @@ class Games extends React.Component {
     }
 
     fetchGames() {
-        // const steamGamesPromise = Steam.getSteamGames();
+        const steamGamesPromise = Steam.getSteamGames();
         // const steamGamesPromise = Steam.getOwnedSteamGames();
-        const steamGamesPromise = Steam.getOwnedGamesByApi();
+        // const steamGamesPromise = Steam.getOwnedGamesByApi();
         const nonSteamGamesPromise = Steam.getNonSteamGames();
         Promise.all([steamGamesPromise, nonSteamGamesPromise]).then((values) => {
             const items = {steam: values[0], ...values[1]};

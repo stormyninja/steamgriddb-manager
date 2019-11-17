@@ -210,6 +210,9 @@ class Steam {
 
                     libraries.forEach((library) => {
                         const appsPath = join(library, 'steamapps');
+                        if(!fs.existsSync(appsPath)) {
+                          return;
+                        }
                         log.info(`Library at ${appsPath}`);
                         const files = fs.readdirSync(appsPath);
                         // fails if steam has not been run since a removable drive library was disconnected

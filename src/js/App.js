@@ -172,7 +172,7 @@ class App extends React.Component {
                                 <Route exact path="/" component={Games} />
                                 <Route exact path="/import" component={Import} />
                                 <Route exact path="/search" component={Search} />
-                                <Route exact path="/settings" component={Settings} />
+                                // <Route exact path="/settings" component={Settings} />
                             </div>
                         </NavigationView>
                     </div>
