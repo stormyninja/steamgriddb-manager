@@ -53,6 +53,7 @@ class App extends React.Component {
     close() {
         const window = remote.getCurrentWindow();
         window.close();
+        app.quit();
     }
 
     minimize() {
@@ -79,8 +80,8 @@ class App extends React.Component {
         const navWidth = 48;
 
         const navigationTopNodes = [
-            <SplitViewCommand key="0" label="Library" icon={'Library'} onClick={() => this.handleNavRedirect('/')} />,
-            <SplitViewCommand key="1" label="Import Games" icon={'ImportAll'} onClick={() => this.handleNavRedirect('/import')} />
+            <SplitViewCommand key="0" label="Main Library" icon={'Library'} onClick={() => this.handleNavRedirect('/?arttype=library')} />,
+            //<SplitViewCommand key="1" label="Import Games" icon={'ImportAll'} onClick={() => this.handleNavRedirect('/import')} />
         ];
 
         let backBtn;
@@ -163,7 +164,7 @@ class App extends React.Component {
                                 }
 
                                 <Route exact path="/" component={Games} />
-                                <Route exact path="/import" component={Import} />
+                                //<Route exact path="/import" component={Import} />
                                 <Route exact path="/search" component={Search} />
                             </div>
                         </NavigationView>

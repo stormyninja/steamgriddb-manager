@@ -7,9 +7,20 @@ const ReactLazyLoad = require('react-lazyload').default;
 class GridImage extends React.Component {
     constructor(props) {
         super(props);
+        if (props.arttype == 'library'){
+          let scale = 4;
+          this.gridWidth = 600 * this.props.zoom / scale;
+          this.gridHeight = 900 * this.props.zoom / scale;
+        }
+        else if (props.arttype == 'bigpicture'){
+          this.gridWidth = 300 * this.props.zoom;
+          this.gridHeight = 140 * this.props.zoom;
+        }
+        else{
+          this.gridWidth = 300 * this.props.zoom;
+          this.gridHeight = 140 * this.props.zoom;
+        }
 
-        this.gridWidth = 300 * this.props.zoom;
-        this.gridHeight = 140 * this.props.zoom;
         this.onGridClick = this.props.onGridClick;
         this.handleClick = this.handleClick.bind(this);
     }
@@ -116,7 +127,17 @@ GridImage.propTypes = {
         PropTypes.string,
         PropTypes.number
     ]),
-    index: PropTypes.number,
+    alt_appid: PropTypes.oneOfType([
+        PropTypes.string,
+        PropTypes.number
+    ]),
+    steamid: PropTypes.oneOfType([
+        PropTypes.string,
+        PropTypes.number
+    ]),
+    arttype: PropTypes.oneOfType([
+        PropTypes.string,
+    ]),    index: PropTypes.number,
     gameType: PropTypes.string,
     gameId: PropTypes.oneOfType([
         PropTypes.string,

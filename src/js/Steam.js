@@ -10,6 +10,9 @@ const metrohash64 = window.require('metrohash').metrohash64;
 const log = window.require('electron-log');
 import SteamID from 'steamid';
 import {crc32} from 'crc';
+const SteamAPI = window.require('steamapi');
+
+const steamAPI = new SteamAPI(process.env.STEAM_API_KEY);
 
 class Steam {
     constructor() {
@@ -18,13 +21,96 @@ class Steam {
         this.currentUserGridPath = null;
     }
 
+    //steam does not currently store icons in appid*.ext format
+    static art_type_suffix = {
+      library: 'p',
+      bigpicture: '',
+      hero: '_hero',
+      logo: '_logo',
+    }
+
+    // will eventually add settings to remap arttypes to server filenames
+    static steam_server_filenames = {
+      small: 'capsule_231x87.jpg',
+      library: 'library_600x900.jpg',
+      library2x: 'library_600x900_2x.jpg',
+      bigpicture: 'header.jpg',
+      background: 'page.bg.jpg',
+      hero: 'library_hero.jpg',
+      logo: 'logo.png',
+      gen_background: 'page_bg_generated.jpg',
+      gen_background6: 'page_bg_generated_v6b.jpg' // unclear what the differences in page_bg images is
+    }
+
+    // stormy
+    // change this to run once on startup, then save to variable for further use
+    // https://medium.com/dailyjs/rewriting-javascript-converting-an-array-of-objects-to-an-object-ec579cafbfc7
+    // efficient map
+    static getSteamAppLookup(){
+      return new Promise((resolve, reject) => {
+        steamAPI.getAppList().then((response) => {
+          let appdict = response.reduce((obj, item)=>{
+            obj[item.name] = item.appid;
+            return obj;
+          },{});
+          this.steamidLookup = appdict;
+          log.info('Successfully connected to the Steam database.');
+          resolve(appdict);
+        })
+        .catch((err)=>{
+          log.info('There was an error connecting to the Steam database.');
+          log.info(err);
+          reject({});
+        });
+      });
+    }
+
+    // Unclear on whether this method is needed
+    // Makes a nice loggable dict of appname:steamid for shortcuts
+    static getSteamIdsFromShortcuts(names) {
+      return this.getSteamAppLookup().then((appdict) => {
+        let steamidmap =  names.reduce((obj,name)=>{
+          obj[name] = appdict[name];
+          return obj;
+        },{});
+        log.info(`Found Steam entries for ${Object.keys(steamidmap).length} shortcuts:`)
+        this.shortcutLookup = steamidmap;
+      });
+    }
+
+    static getAppidByArttype(){
+
+    }
+
     static getSteamPath() {
         return new Promise((resolve, reject) => {
             if (this.steamPath) {
                 return resolve(this.steamPath);
             }
 
-            let steamPath = '/Users/benstevens/Library/Application\ Support/Steam';
+            // We're on a mac, use mac path
+            let steamPath = false;
+            if(process.platform == 'darwin'){
+              log.info('Using MacOS');
+              steamPath = `/Users/${process.env.USER}/Library/Application\ Support/Steam`;
+            }
+
+            // We're on a pc, search registry
+            else if (process.platform == 'win32'){
+              log.info('Using Windows');
+              const key = new Registry({
+                  hive: Registry.HKCU,
+                  key:  '\\Software\\Valve\\Steam'
+              });
+
+              key.values((err, items) => {
+                  items.forEach((item) => {
+                      if (item.name === 'SteamPath') {
+                          steamPath = item.value;
+                      }
+                  });
+              });
+            }
 
             if (steamPath) {
                 this.steamPath = steamPath;
@@ -37,24 +123,25 @@ class Steam {
     }
 
     static getCurrentUserGridPath() {
-        return new Promise((resolve) => {
-            if (this.currentUserGridPath) {
-                return resolve(this.currentUserGridPath);
-            }
-            this.getSteamPath().then((steamPath) => {
-                this.getLoggedInUser().then((user) => {
-                    const gridPath = join(steamPath, 'userdata', String(user), 'config', 'grid');
-                    if (!fs.existsSync(gridPath)){
-                        fs.mkdirSync(gridPath);
-                    }
-                    this.currentUserGridPath = gridPath;
-                    resolve(gridPath);
-                });
-            });
-        });
+          return new Promise((resolve) => {
+              if (this.currentUserGridPath) {
+                  return resolve(this.currentUserGridPath);
+              }
+              this.getSteamPath().then((steamPath) => {
+                  this.getLoggedInUser().then((user) => {
+                      const gridPath = join(steamPath, 'userdata', String(user), 'config', 'grid');
+                      if (!fs.existsSync(gridPath)){
+                          fs.mkdirSync(gridPath);
+                      }
+                      this.currentUserGridPath = gridPath;
+                      resolve(gridPath);
+                  });
+              });
+          });
     }
 
     static getSteamGames() {
+
         return new Promise((resolve) => {
             this.getSteamPath().then((steamPath) => {
                 this.getCurrentUserGridPath().then((userdataPath) => {
@@ -73,11 +160,13 @@ class Steam {
                         }
                     });
 
-                    log.info(`Found ${libraries.length} Steam libraries`);
+                    log.info(`Found ${libraries.length} Steam libraries:`);
 
                     libraries.forEach((library) => {
                         const appsPath = join(library, 'steamapps');
+                        log.info(`library: ${appsPath}`);
                         const files = fs.readdirSync(appsPath);
+                        // fails if steam has not been run since a removable drive library was disconnected
                         files.forEach((file) => {
                             const ext = file.split('.').pop();
 
@@ -85,28 +174,30 @@ class Steam {
                                 const filePath = join(appsPath, file);
                                 const data = fs.readFileSync(filePath, 'utf-8');
                                 try {
-                                    const gameData = VDF.parse(data);
-                                    if (gameData.AppState.appid === 228980) {
-                                        return;
-                                    }
+                                  const gameData = VDF.parse(data);
 
-                                    let image = this.getCustomGridImage(userdataPath, gameData.AppState.appid);
+                                  if (gameData.AppState.appid === 228980) {
+                                      return;
+                                  }
 
-                                    if (!image) {
-                                        image = this.getDefaultGridImage(gameData.AppState.appid);
-                                    }
+                                  let default_images = this.getDefaultGridImages(gameData.AppState.appid);
+                                  let custom_images = this.getCustomGridImages(userdataPath, gameData.AppState.appid);
+                                  let images = {};
+                                  Object.keys(this.art_type_suffix).forEach((key)=>{
+                                    images[key] = custom_images[key] ? custom_images[key] : default_images[key];
+                                  });
 
-                                    games.push({
-                                        appid: gameData.AppState.appid,
-                                        name: gameData.AppState.name,
-                                        image: image,
-                                        imageURI: image,
-                                        type: 'game'
-                                    });
-                                } catch(err) {
-                                    log.warn(`Error while parsing ${file}: ${err}`);
-                                    return;
-                                }
+                                  games.push({
+                                      appid: gameData.AppState.appid,
+                                      name: gameData.AppState.name,
+                                      library_image: images['library'],
+                                      bigpicture_image: images['bigpicture'],
+                                      type: 'game'
+                                  });
+                              } catch(err) {
+                                  log.warn(`Error while parsing ${file}: ${err}`);
+                                  return;
+                              }
                             }
                         });
                     });
@@ -133,59 +224,94 @@ class Steam {
                             return resolve([]);
                         }
 
-                        items.shortcuts.forEach((item) => {
-                            const appName = item.appname || item.AppName;
-                            const exe = item.exe || item.Exe;
-                            const appid = this.generateAppId(exe, appName);
-                            const image = this.getCustomGridImage(userdataGridPath, appid);
-                            let imageURI = false;
-                            if (image) {
-                                imageURI = `file://${image.replace(/ /g, '%20')}`;
-                            }
+                        log.info(`Found ${items.shortcuts.length} shortcuts`);
 
-                            const configId = metrohash64(exe+item.LaunchOptions);
-                            if (store.has(`games.${configId}`)) {
-                                const storedGame = store.get(`games.${configId}`);
-                                if (typeof games[storedGame.platform] == 'undefined') {
-                                    games[storedGame.platform] = [];
-                                }
+                        let appnames = items.shortcuts.map(x => x.AppName | x.appname);
+                        this.getSteamIdsFromShortcuts(appnames).then((result)=>{
+                          items.shortcuts.forEach((item) => {
+                              const appName = item.appname || item.AppName;
+                              const exe = item.exe || item.Exe;
+                              const appid = this.generateAppId(exe, appName);
+                              const steamid = this.steamidLookup[appName] | undefined;
 
-                                games[storedGame.platform].push({
-                                    gameId: storedGame.id,
-                                    appid: appid,
-                                    name: appName,
-                                    platform: storedGame.platform,
-                                    image: image,
-                                    imageURI: imageURI,
-                                    type: 'shortcut'
+                              let custom_images = this.getCustomGridImages(userdataGridPath, appid, true)
+                              let images = {custom_images};
+                              if(steamid){
+                                let default_images = this.getDefaultGridImages(steamid);
+                                Object.keys(this.art_type_suffix).forEach((key)=>{
+                                  images[key] = custom_images[key] ? custom_images[key] : default_images[key];
                                 });
-                            } else {
-                                if (!games['other']) {
-                                    games['other'] = [];
-                                }
+                              }
 
-                                games['other'].push({
-                                    gameId: null,
-                                    appid: appid,
-                                    name: appName,
-                                    platform: 'other',
-                                    image: image,
-                                    imageURI: imageURI,
-                                    type: 'shortcut'
-                                });
-                            }
+                              // stormy
+                              // check what gameid is actually for; tracking platform's id?
+                              const configId = metrohash64(exe+item.LaunchOptions);
+                              if (store.has(`games.${configId}`)) {
+                                  const storedGame = store.get(`games.${configId}`);
+                                  if (typeof games[storedGame.platform] == 'undefined') {
+                                      games[storedGame.platform] = [];
+                                  }
+
+                                  games[storedGame.platform].push({
+                                      gameId: storedGame.id,
+                                      appid: appid,
+                                      steamid: steamid,
+                                      name: appName,
+                                      platform: storedGame.platform,
+                                      library_image: images['library'],
+                                      bigpicture_image: images['bigpicture'],
+                                      type: 'shortcut'
+                                  });
+                              } else {
+                                  if (!games['other']) {
+                                      games['other'] = [];
+                                  }
+
+                                  games['other'].push({
+                                      gameId: null,
+                                      appid: appid,
+                                      steamid: steamid,
+                                      name: appName,
+                                      platform: 'other',
+                                      library_image: images['library'],
+                                      bigpicture_image: images['bigpicture'],
+                                      type: 'shortcut'
+                                  });
+                              }
+                          });
+                          resolve(games);
                         });
-                        resolve(games);
+
                     });
                 });
             });
         });
     }
 
+    //
+    static generateLongAppId(exe, name) {
+      const key = exe + name;
+      const top = BigInt(crc32(key)) | BigInt(0x80000000);
+      const bigint = BigInt(top) << BigInt(32) | BigInt(0x02000000);
+      const str = String(bigint);
+      return str;
+    }
+
     static generateAppId(exe, name) {
         const key = exe + name;
         const top = BigInt(crc32(key)) | BigInt(0x80000000);
-        return String((BigInt(top) << BigInt(32) | BigInt(0x02000000)));
+        const bigint = BigInt(top) << BigInt(32) | BigInt(0x02000000);
+        const shift = bigint >> BigInt(32);
+        const str = String(shift);
+        return String(shift);
+    }
+
+    static shortenShortcutId(appid){
+      return String(BigInt(appid) >> BigInt(32));
+    }
+
+    static lengthenShortcutId(appid){
+      return String((BigInt(appid) << BigInt(32)) | BigInt(0x02000000));
     }
 
     static getLoggedInUser() {
@@ -211,29 +337,45 @@ class Steam {
         });
     }
 
-    static getDefaultGridImage(appid) {
-        return `https://steamcdn-a.akamaihd.net/steam/apps/${appid}/header.jpg`;
+    // get steamid from game name, then get steam data
+    static getDefaultGridImage(steamid, arttype) {
+      return `https://steamcdn-a.akamaihd.net/steam/apps/${steamid}/${this.steam_server_filenames[arttype]}`;
     }
 
-    static getCustomGridImage(userdataGridPath, appid) {
-        const fileTypes = ['jpg', 'jpeg', 'png', 'tga'];
-        const basePath = join(userdataGridPath, String(appid));
+    static getDefaultGridImages(steamid) {
+      let images = {};
+      Object.keys(this.art_type_suffix).forEach((key)=>{
+        images[key] = this.getDefaultGridImage(steamid, key);
+      });
+      return images;
+    }
+
+    static getCustomGridImage(userdataGridPath, appid, arttype, is_shortcut = false) {
+        const fileTypes = ['jpg', 'jpeg', 'png', 'tga', 'apng'];
+        const basePath = join(userdataGridPath, String(is_shortcut && arttype == 'bigpicture' ? this.lengthenShortcutId(appid) : appid));
+        const suffixPath = basePath.concat(String(this.art_type_suffix[arttype]));
+
         let image = false;
-
         fileTypes.some((ext) => {
-            const path = `${basePath}.${ext}`;
-
+            const path = `${suffixPath}.${ext}`;
             if (fs.existsSync(path)) {
                 image = path;
                 return true;
             }
         });
-
         return image;
     }
 
-    static deleteCustomGridImage(userdataGridPath, appid) {
-        const imagePath = this.getCustomGridImage(userdataGridPath, appid);
+    static getCustomGridImages(userdataGridPath, appid, is_shortcut = false) {
+        let images = {};
+        Object.keys(this.art_type_suffix).forEach((key)=>{
+          images[key] = this.getCustomGridImage(userdataGridPath, appid, key, is_shortcut);
+        });
+        return images;
+    }
+
+    static deleteCustomGridImage(userdataGridPath, appid, arttype, is_shortcut = false) {
+        const imagePath = this.getCustomGridImage(userdataGridPath, appid, arttype, is_shortcut);
         if (imagePath) {
             fs.unlinkSync(imagePath);
         }
@@ -251,12 +393,14 @@ class Steam {
         });
     }
 
-    static addGrid(appId, url, onProgress = () => {}) {
+    static addGrid(appId, gameType, url, arttype, onProgress = () => {}) {
+        let is_shortcut = (gameType == 'shortcut');
         return new Promise((resolve, reject) => {
             this.getCurrentUserGridPath().then((userGridPath) => {
                 const image_url = url;
                 const image_ext = image_url.substr(image_url.lastIndexOf('.') + 1);
-                const dest = join(userGridPath, `${appId}.${image_ext}`);
+                let gameid = (is_shortcut && arttype == 'bigpicture')? this.lengthenShortcutId(appId) : appId;
+                const dest = join(userGridPath, `${gameid}${this.art_type_suffix[arttype]}.${image_ext}`);
 
                 let cur = 0;
                 const data = new Stream();
@@ -266,7 +410,7 @@ class Steam {
                     const len = parseInt(response.headers['content-length'], 10);
 
                     response.on('end', () => {
-                        this.deleteCustomGridImage(userGridPath, appId);
+                        this.deleteCustomGridImage(userGridPath, appId, arttype, is_shortcut);
                         fs.writeFileSync(dest, data.read());
                         resolve(dest);
                     });
