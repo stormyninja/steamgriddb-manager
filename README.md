@@ -22,5 +22,18 @@ NOTE: I had issues when just trying `npm install`, but the solution for node-gyp
 
 NOTE 2: After `npm install`, remove `node_modules\steamgriddb`, then `git clone https://github.com/steamgriddb/node-steamgriddb.git node_modules\steamgriddb`. PR was merged with master, but npm doesn't fetch new version so we do it manually (I'm new to node package versioning, this is likely an oversight of mine in not updating package.json or something).
 
+NOTE 3: If you want to have the tool get official steam art when change game art:
+1. Run the manager at least once and import any game as a shortcutPath
+2. Navigate to `\Users\your_username_here\AppData\Roaming\steamgriddb-manager\` and open the `config` file in any text editor which can handle JSON
+3. In a browser, open https://steamcommunity.com/dev/apikey and sign in
+4. Copy your API key
+5. Add `"steam_api_key":"api_key_you_copied",` after the first open bracket (`{`)
+
+Future versions will add a settings pane which links you to the login and allows you to input it via GUI. App currently does NOT show if official steam art is applied to shortcuts either. Future versions will apply Steam art by default if no custom image is present for shortcuts which have matched steam versions (this will be a toggleable feature in settings).
+
+
+
+
+
 # License
 [MIT](LICENSE.md)
