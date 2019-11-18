@@ -290,10 +290,6 @@ class Games extends React.Component {
                                       logo: this.addNoCache(item.logo_image),
                                       hero: this.addNoCache(item.hero_image),
                                     };
-                                    if(platform == 'egs'){
-                                      log.info(item.name);
-                                      log.info(image);
-                                    }
                                     const imageURI = this.addNoCache((item.imageURI));
                                     return (
                                         // id attribute is used as a scroll target after a search

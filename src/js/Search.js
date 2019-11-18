@@ -42,7 +42,7 @@ class Search extends React.Component {
             break;
           case 'bigpicture':
             // API doesn't yet support bigpicture dimensions
-            this.dimensions = ['920x430','460x215'];
+            //this.dimensions = ['920x430','460x215'];
             break;
           case 'hero':
             // API doesn't yet support hero dimensions

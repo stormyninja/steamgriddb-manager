@@ -10,6 +10,9 @@ const metrohash64 = window.require('metrohash').metrohash64;
 const log = window.require('electron-log');
 import SteamID from 'steamid';
 import {crc32} from 'crc';
+const SteamAPI = window.require('steamapi');
+const SGDB = window.require('steamgriddb');
+
 
 class Steam {
     constructor() {
@@ -46,6 +49,90 @@ class Steam {
       logo: 'logo.png',
       gen_background: 'page_bg_generated.jpg',
       gen_background6: 'page_bg_generated_v6b.jpg' // used on store page
+    }
+
+    static getSteamDatabase(){
+      return new Promise((resolve, reject) => {
+        const store = new Store();
+        if (store.has('steam_api_key')){
+          const steamAPI = new SteamAPI(store.get('steam_api_key'));
+          steamAPI.getAppList().then((response) => {
+            let appdict = response.reduce((obj, item)=>{
+              obj[item.name] = item.appid;
+              return obj;
+            },{});
+            this.steamidLookup = appdict;
+            log.info('Successfully connected to the Steam database. Storing database locally.');
+            resolve(appdict);
+          })
+          .catch((err)=>{
+            log.info('There was an error connecting to the Steam database.');
+            reject(err);
+          });
+        }
+        else {
+          reject('No Steam API key');
+        }
+
+
+      });
+    }
+
+    // stormy
+    // change this to run once on startup, then save to variable for further use
+    // setting frequency of updating steam database should be a configurable setting
+    // will also allow user to refresh it manually
+    // part of a bigger package involving fuzzy game name lookups
+    // storing db this way as part of 'config' seems incredibly stupid, but it works for now
+    // should probably change to an fs file save or something
+    static getSteamAppLookup(){
+      return new Promise((resolve, reject) => {
+        const store = new Store();
+        const currentdate = new Date();
+        const DAYS_IN_MILLISECONDS = 1000 * 60 * 60 * 24;
+        let updatefreq = 3 * DAYS_IN_MILLISECONDS;
+        if (store.has('steamdb')) {
+          log.info('cached steamdb')
+          updatefreq = store.get('steamdb.update_frequency');
+          const db_lastupdate = new Date(store.get('steamdb.lastupdated'));
+          const diff = currentdate.getTime() - db_lastupdate.getTime();
+          if (diff < updatefreq){
+            log.info(`Steam DB updated fewer than ${updatefreq / DAYS_IN_MILLISECONDS} days ago, using local version`);
+            return resolve(store.get('steamdb.database'))
+          }
+        }
+        this.getSteamDatabase().then((appdict)=>{
+          store.set({
+            steamdb: {
+              lastupdated: currentdate,
+              update_frequency: updatefreq,
+              database: appdict
+            }
+          });
+          return resolve(appdict);
+        }).catch((err)=>{
+          log.error(err);
+          return resolve({});
+        });
+      });
+    }
+
+    // Unclear on whether this method is needed
+    // Makes a nice loggable dict of appname:steamid for shortcuts
+    static getSteamIdsFromShortcuts(names) {
+      return new Promise((resolve, reject) => {
+        return this.getSteamAppLookup().then((appdict) => {
+          let steamidmap =  names.reduce((obj,name)=>{
+            if(appdict[name]){
+              obj[name] = appdict[name];
+            }
+            return obj;
+          },{});
+          log.info(`Found Steam entries for ${Object.keys(steamidmap).length} shortcuts:`)
+          log.info(Object.keys(steamidmap));
+          return resolve(steamidmap);
+        }).catch(log.error);
+      });
     }
 
     static getSteamPath() {
@@ -178,54 +265,71 @@ class Steam {
                         if (!items) {
                             return resolve([]);
                         }
+                        let appnames = items.shortcuts.map(x => x.AppName || x.appname || x.appName);
+                        log.info(`Found ${items.shortcuts.length} shortcuts`);
+                        //log.info(appnames);
+                        this.getSteamIdsFromShortcuts(appnames).then((lookup)=>{
+                          items.shortcuts.forEach((item) => {
+                              const appName = item.appname || item.AppName || item.appName;
+                              const exe = item.exe || item.Exe;
+                              const appid = this.generateAppId(exe, appName);
+                              const steamid = lookup[appName] || undefined;
 
-                        items.shortcuts.forEach((item) => {
-                            const appName = item.appName || item.AppName;
-                            const exe = item.exe || item.Exe;
-                            const appid = this.generateAppId(exe, appName);
-                            const image = this.getCustomGridImage(userdataGridPath, appid, 'bigpicture');
-                            let imageURI = false;
-                            if (image) {
-                                imageURI = `file://${image.replace(/ /g, '%20')}`;
-                            }
-                            let images = this.getCustomGridImages(userdataGridPath, appid, true);
-                            const configId = metrohash64(exe+item.LaunchOptions);
-                            if (store.has(`games.${configId}`)) {
-                                const storedGame = store.get(`games.${configId}`);
-                                if (typeof games[storedGame.platform] == 'undefined') {
-                                    games[storedGame.platform] = [];
-                                }
-
-                                games[storedGame.platform].push({
-                                    gameId: storedGame.id,
-                                    appid: appid,
-                                    name: appName,
-                                    platform: storedGame.platform,
-                                    bigpicture_image: images['bigpicture'],
-                                    library_image: images['library'],
-                                    logo_image: images['logo'],
-                                    hero_image: images['hero'],
-                                    type: 'shortcut'
+                              let custom_images = this.getCustomGridImages(userdataGridPath, appid, true);
+                              let using_custom = Object.keys(custom_images).reduce((acc, key)=>{
+                                acc[key] = !!custom_images[key];
+                                return acc;
+                              },{});
+                              let images = custom_images;
+                              if(steamid){
+                                let default_images = this.getDefaultGridImages(steamid);
+                                Object.keys(this.art_type_suffix).forEach((key)=>{
+                                  images[key] = custom_images[key] ? custom_images[key] : default_images[key];
                                 });
-                            } else {
-                                if (!games['other']) {
-                                    games['other'] = [];
-                                }
+                              }
 
-                                games['other'].push({
-                                    gameId: null,
-                                    appid: appid,
-                                    name: appName,
-                                    platform: 'other',
-                                    library_image: images['library'],
-                                    bigpicture_image: images['bigpicture'],
-                                    logo_image: images['logo'],
-                                    hero_image: images['hero'],
-                                    type: 'shortcut'
-                                });
-                            }
+                              const configId = metrohash64(exe+item.LaunchOptions);
+                              if (store.has(`games.${configId}`)) {
+                                  const storedGame = store.get(`games.${configId}`);
+                                  if (typeof games[storedGame.platform] == 'undefined') {
+                                      games[storedGame.platform] = [];
+                                  }
+                                  games[storedGame.platform].push({
+                                      gameId: storedGame.id,
+                                      appid: appid,
+                                      steamid: steamid,
+                                      name: appName,
+                                      platform: storedGame.platform,
+                                      library_image: images['library'],
+                                      bigpicture_image: images['bigpicture'],
+                                      logo_image: images['logo'],
+                                      hero_image: images['hero'],
+                                      using_custom: using_custom,
+                                      type: 'shortcut'
+                                  });
+                              }
+                              else {
+                                  if (!games['other']) {
+                                      games['other'] = [];
+                                  }
+                                  games['other'].push({
+                                      gameId: null,
+                                      appid: appid,
+                                      steamid: steamid,
+                                      name: appName,
+                                      platform: 'other',
+                                      library_image: images['library'],
+                                      bigpicture_image: images['bigpicture'],
+                                      logo_image: images['logo'],
+                                      hero_image: images['hero'],
+                                      using_custom: using_custom,
+                                      type: 'shortcut'
+                                  });
+                              }
+                          });
+                          resolve(games);
                         });
-                        resolve(games);
+
                     });
                 });
             });
