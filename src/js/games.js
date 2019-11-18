@@ -267,7 +267,7 @@ class Games extends React.Component {
                 <TopBlur additionalHeight={48} />
                 {this.commandBar()}
                 <div id="grids-container" style={{height: '100%', overflow: 'auto', paddingTop: 64}}>
-                    {Object.keys(this.state.arttype != 'bigpicture' ? {steam: items['steam']} : items).map((platform) => (
+                    {Object.keys(items).map((platform) => (
                         <div key={platform} style={{paddingLeft: 10}}>
                             <div style={{
                                 ...this.context.theme.typographyStyles.subTitleAlt,
@@ -290,6 +290,10 @@ class Games extends React.Component {
                                       logo: this.addNoCache(item.logo_image),
                                       hero: this.addNoCache(item.hero_image),
                                     };
+                                    if(platform == 'egs'){
+                                      log.info(item.name);
+                                      log.info(image);
+                                    }
                                     const imageURI = this.addNoCache((item.imageURI));
                                     return (
                                         // id attribute is used as a scroll target after a search

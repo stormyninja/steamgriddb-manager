@@ -180,7 +180,7 @@ class Steam {
                         }
 
                         items.shortcuts.forEach((item) => {
-                            const appName = item.appname || item.AppName;
+                            const appName = item.appName || item.AppName;
                             const exe = item.exe || item.Exe;
                             const appid = this.generateAppId(exe, appName);
                             const image = this.getCustomGridImage(userdataGridPath, appid, 'bigpicture');
@@ -188,7 +188,7 @@ class Steam {
                             if (image) {
                                 imageURI = `file://${image.replace(/ /g, '%20')}`;
                             }
-
+                            let images = this.getCustomGridImages(userdataGridPath, appid, true);
                             const configId = metrohash64(exe+item.LaunchOptions);
                             if (store.has(`games.${configId}`)) {
                                 const storedGame = store.get(`games.${configId}`);
@@ -201,7 +201,10 @@ class Steam {
                                     appid: appid,
                                     name: appName,
                                     platform: storedGame.platform,
-                                    bigpicture_image: image,
+                                    bigpicture_image: images['bigpicture'],
+                                    library_image: images['library'],
+                                    logo_image: images['logo'],
+                                    hero_image: images['hero'],
                                     type: 'shortcut'
                                 });
                             } else {
@@ -214,7 +217,10 @@ class Steam {
                                     appid: appid,
                                     name: appName,
                                     platform: 'other',
-                                    bigpicture_image: image,
+                                    library_image: images['library'],
+                                    bigpicture_image: images['bigpicture'],
+                                    logo_image: images['logo'],
+                                    hero_image: images['hero'],
                                     type: 'shortcut'
                                 });
                             }
