@@ -86,7 +86,7 @@ class App extends React.Component {
         let backBtn;
         let titleWidth = '100%';
         if (this.state.showBack) {
-            backBtn = <Link to='/' onClick={() => {this.setState({showBack: false});}}>
+            backBtn = <Link to=`/?arttype=${this.state.arttype || 'library'}` onClick={() => {this.setState({showBack: false});}}>
                 <IconButton style={{
                     display: 'block',
                     position: 'relative',

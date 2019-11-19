@@ -19,17 +19,18 @@ class Search extends React.Component {
         super(props);
 
         this.applyGrid = this.applyGrid.bind(this);
-        this.zoom = 1;
         this.store = new Store();
 
         const qs = this.props.location && queryString.parse(this.props.location.search);
+        this.zoom = props.zoom;
+
         this.game = qs.game;
         this.query = qs.game;
         this.appid = qs.appid;
         this.gameType = qs.type;
         this.platform = qs.platform;
         this.gameId = qs.gameId;
-        this.arttype = qs.arttype;
+        this.steamid = qs.steamid;
 
         this.arttype = qs.arttype;
         this.styles = undefined;
@@ -80,6 +81,11 @@ class Search extends React.Component {
 
     // @todo This should be it's own class so we can use it during one-click downloads
     searchGrids() {
+      log.info(`${this.game} is being searched`)
+      log.info(`${this.steamid} is being searched`)
+        // stormy - should maybe use env or store api key?
+        // will consider requiring a key for souce-build use otherwise default
+        //const client = new SGDB(process.env.STEAMGRIDDB_API_KEY);
         const client = new SGDB('b971a6f5f280490ab62c0ee7d0fd1d16');
 
         if (this.gameType === 'game') {
@@ -90,7 +96,7 @@ class Search extends React.Component {
                 style: 'default',
                 title: this.query,
                 author: {
-                    name: null
+                    name: 'Official Steam Artwork'
                 }
             }];
             client.getGridsBySteamAppId(this.appid, this.styles, this.dimensions)
@@ -115,35 +121,52 @@ class Search extends React.Component {
                     }
                 });
         }
-
-        if (this.gameType === 'shortcut' && officialList.includes(this.platform)) {
+        if (this.gameType === 'shortcut'){
+          let items = [];
+          if(this.steamid){
+            log.info(`${this.name} has a steam id ${this.steamid}`)
+            const defaultGridImage = Steam.getDefaultGridImage(this.steamid, this.arttype);
+            log.info(`default grid image: ${defaultGridImage}, arttype: ${this.arttype}`)
+            items.push({
+                url: defaultGridImage,
+                thumb: defaultGridImage,
+                style: 'default',
+                title: this.query,
+                author: {
+                    name: 'Official Steam Artwork'
+                }
+            });
+          }
+          // if game platform is from an 'official' importer in importers/
+          if (officialList.includes(this.platform)) {
             client.getGrids({id: this.gameId, type: this.platform, styles: this.styles, dimensions: this.dimensions})
-                .then((items) => {
-                    this.setState({
-                        isLoaded: true,
-                        items: items
-                    });
-                })
-                .catch(() => {
-                    this.setState({
-                        apiError: true
-                    });
-                });
-        } else if (this.gameType === 'shortcut' && !officialList.includes(this.platform)) {
-            client.searchGame(this.query)
-                .then((res) => {
-                    client.getGridsById(res[0].id, this.styles, this.dimensions)
-                        .then((items) => {
-                            this.setState({
-                                isLoaded: true,
-                                items: items
-                            });
-                        });
-                }).catch(() => {
-                    this.setState({
-                        apiError: true
-                    });
-                });
+                  .then((grids) => {
+                      this.setState({
+                          isLoaded: true,
+                          items: items.concat(grids)
+                      });
+                  })
+                  .catch(() => {
+                      this.setState({
+                          apiError: true
+                      });
+                  });
+          }
+          else {
+              client.searchGame(this.query).then((res) => {
+                      client.getGridsById(res[0].id, this.styles, this.dimensions)
+                          .then((grids) => {
+                              this.setState({
+                                  isLoaded: true,
+                                  items: items.concat(grids)
+                              });
+                          });
+                  }).catch(() => {
+                      this.setState({
+                          apiError: true
+                      });
+                  });
+          }
         }
     }
 

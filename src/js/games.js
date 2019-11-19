@@ -113,9 +113,11 @@ class Games extends React.Component {
             appid: props.appid,
             type: props.gameType,
             gameId: props.gameId,
+            steamid: props.steamid,
             platform: props.platform,
             arttype: props.arttype,
-            arttype_image: props.arttype_image
+            image: props.image,
+            zoom: props.zoom
         });
 
         const to = `/search/?${parsedQs}`;
@@ -284,13 +286,17 @@ class Games extends React.Component {
                                 platform={platform}
                             >
                                 {items[platform].map((item) => {
+
                                     let image = {
                                       library: this.addNoCache(item.library_image),
                                       bigpicture: this.addNoCache(item.bigpicture_image),
                                       logo: this.addNoCache(item.logo_image),
                                       hero: this.addNoCache(item.hero_image),
                                     };
-                                    const imageURI = this.addNoCache((item.imageURI));
+                                    // const imageURI = this.addNoCache((item.imageURI));
+                                    if (item.steamid){
+                                      log.info(`${item.name} has steamid ${item.steamid}`);
+                                    }
                                     return (
                                         // id attribute is used as a scroll target after a search
                                         <div id={`game-${item.appid}`} key={item.appid}>
@@ -299,6 +305,7 @@ class Games extends React.Component {
                                                 gameId={item.gameId}
                                                 platform={platform}
                                                 appid={item.appid}
+                                                steamid={item.steamid}
                                                 gameType={item.type}
                                                 image={image[this.state.arttype]}
                                                 zoom={this.zoom}
