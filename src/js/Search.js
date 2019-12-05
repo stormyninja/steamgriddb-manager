@@ -35,6 +35,7 @@ class Search extends React.Component {
         this.arttype = qs.arttype;
         this.styles = undefined;
         this.dimensions = undefined;
+        this.endpoint = 'grids';
 
         log.info(`Search arttype: ${this.arttype}`);
         switch(this.arttype){
@@ -43,12 +44,13 @@ class Search extends React.Component {
             break;
           case 'bigpicture':
             // API doesn't yet support bigpicture dimensions
-            //this.dimensions = ['920x430','460x215'];
+            this.dimensions = ['920x430','460x215'];
             break;
           case 'hero':
             // API doesn't yet support hero dimensions
             // HOWEVER, picking an image which doesn't look distored in-manager likely means someone has uploaded hero art
-            this.dimensions = ['1920x620', '3840x1240'];
+            //this.dimensions = ['1920x620', '3840x1240'];
+            this.endpoint = 'heroes';
             break;
           case 'logo':
             // API doesn't support logo dimensions, and they don't have a standard size either
@@ -99,7 +101,7 @@ class Search extends React.Component {
                     name: 'Official Steam Artwork'
                 }
             }];
-            client.getGridsBySteamAppId(this.appid, this.styles, this.dimensions)
+            client.getArtBySteamAppId(this.appid, this.styles, this.dimensions, this.arttype)
                 .then((res) => {
                     this.setState({
                         isLoaded: true,
@@ -139,11 +141,11 @@ class Search extends React.Component {
           }
           // if game platform is from an 'official' importer in importers/
           if (officialList.includes(this.platform)) {
-            client.getGrids({id: this.gameId, type: this.platform, styles: this.styles, dimensions: this.dimensions})
-                  .then((grids) => {
+            client.getArt({id: this.gameId, type: this.platform, styles: this.styles, dimensions: this.dimensions, arttype: this.arttype})
+                  .then((art) => {
                       this.setState({
                           isLoaded: true,
-                          items: items.concat(grids)
+                          items: items.concat(art)
                       });
                   })
                   .catch(() => {
@@ -154,11 +156,11 @@ class Search extends React.Component {
           }
           else {
               client.searchGame(this.query).then((res) => {
-                      client.getGridsById(res[0].id, this.styles, this.dimensions)
-                          .then((grids) => {
+                      client.getArtById(res[0].id, this.styles, this.dimensions, this.arttype)
+                          .then((art) => {
                               this.setState({
                                   isLoaded: true,
-                                  items: items.concat(grids)
+                                  items: items.concat(art)
                               });
                           });
                   }).catch(() => {

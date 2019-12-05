@@ -294,7 +294,7 @@ class Games extends React.Component {
                                       hero: this.addNoCache(item.hero_image),
                                     };
                                     // const imageURI = this.addNoCache((item.imageURI));
-                                    if (item.steamid){
+                                    if (item.steamid && false){
                                       log.info(`${item.name} has steamid ${item.steamid}`);
                                     }
                                     return (
